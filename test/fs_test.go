@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -109,7 +110,7 @@ func cleanDir(dir string, subdirs []string, flag int) error {
 	return nil
 }
 
-func checkExist(dir string) error {
+func checkDirExist(dir string) error {
 	dirname := realpath(dir)
 	f, err := os.Open(dirname)
 	if err != nil {
@@ -225,7 +226,7 @@ func TestConcurrentBasic(t *testing.T) {
 				t.Errorf(err.Error())
 				return
 			}
-			if err := checkExist(name); err != nil {
+			if err := checkDirExist(name); err != nil {
 				t.Errorf(err.Error())
 				return
 			}
@@ -438,6 +439,30 @@ func creatWithContent(path string, data []byte) (int, error) {
 	return fd, nil
 }
 
+func checkFileExist(path string) error {
+	var stat syscall.Stat_t
+	if err := syscall.Lstat(path, &stat); err != nil {
+		if err != syscall.ENOENT {
+			return fmt.Errorf(
+				"Unexpected error when calling lstat against file %s: %v",
+				path, err)
+		}
+		return err
+	}
+	return nil
+}
+
+func checkFileNonexist(path string) error {
+	err := checkFileExist(path)
+	if err == nil {
+		return fmt.Errorf("File %s should not exist", path)
+	}
+	if err == syscall.ENOENT {
+		return nil
+	}
+	return err
+}
+
 func checkFileSize(path string, expected int64) error {
 	var stat syscall.Stat_t
 	if err := syscall.Lstat(path, &stat); err != nil {
@@ -646,5 +671,61 @@ func TestConcurrentWrites(t *testing.T) {
 
 	if !t.Failed() {
 		log.Printf(" ... Passed")
+	}
+}
+
+func TestConcurrentRenames(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		// Skip the test under OS X
+		// Something seems not right under OS X
+		t.Skip()
+	}
+
+	oldName := realpath("testfile-" + randstring(8))
+	newName := realpath("testfile-" + randstring(8))
+
+	fd, err := creat(oldName, 0644)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	defer func() {
+		_ = syscall.Unlink(oldName)
+		_ = syscall.Unlink(newName)
+		_ = syscall.Close(fd)
+	}()
+
+	concurrency := 16
+	count := int32(0)
+
+	var wg sync.WaitGroup
+	wg.Add(concurrency)
+	for i := 0; i < concurrency; i++ {
+		go func() {
+			defer wg.Done()
+			err := syscall.Rename(oldName, newName)
+			if err != nil {
+				if err != syscall.ENOENT {
+					t.Errorf(
+						"Unexpected error when renaming %s to %s: %v",
+						oldName, newName, err)
+				}
+				return
+			}
+			atomic.AddInt32(&count, 1)
+		}()
+	}
+	wg.Wait()
+
+	if err := checkFileNonexist(oldName); err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	if err := checkFileExist(newName); err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	if count != 1 {
+		t.Fatalf("# of succeeded renames is %d instead of 1", count)
 	}
 }
