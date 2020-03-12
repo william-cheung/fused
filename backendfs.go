@@ -55,6 +55,12 @@ type BackendFS interface {
 	// of the destination directory; dName is the new name specified
 	Rename(sIno uint64, sName string, dIno uint64, dName string) error
 
+	// Link makes a new name for a file. ino is the inode number of the file,
+	// dIno is the inode number of the destination directory, dName is the
+	// new name given.
+	// Link will return attributes of the file on success.
+	Link(ino uint64, dIno uint64, dName string) (*Stat, error)
+
 	// Setattr sets attributes of a file or directory. 'attrs' contains
 	// attributes that need to set and is always not empty.
 	// Setattr will return the updated attributes on success.

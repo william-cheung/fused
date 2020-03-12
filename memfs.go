@@ -218,6 +218,37 @@ func (fs *MemFS) Rename(
 	return nil
 }
 
+func (fs *MemFS) Link(
+	ino uint64, dIno uint64, dName string) (*Stat, error) {
+	inode, ok := fs.LoadInode(ino)
+	if !ok {
+		return nil, syscall.ENOENT
+	}
+	dInode, ok := fs.LoadInode(dIno)
+	if !ok {
+		return nil, syscall.ENOENT
+	}
+
+	// assert ino != dIno
+	// assert inode.mode & os.ModeType == 0
+	// assert dInode.mode & os.ModeType == os.ModeDir
+
+	inode.Lock()
+	defer inode.Unlock()
+	dInode.Lock()
+	defer dInode.Unlock()
+
+	if _, err := dInode.GetDirent(dName); err == nil {
+		return nil, syscall.EEXIST
+	}
+	// nolint: errcheck
+	dInode.AddDirent(ino, dName, inode.mode&os.ModeType)
+
+	inode.Link()
+
+	return inode.Stat(), nil
+}
+
 func (fs *MemFS) Setattr(
 	ino uint64, attrs map[string]interface{}) (*Stat, error) {
 	inode, ok := fs.LoadInode(ino)
@@ -387,6 +418,10 @@ func (inode *MemInode) Unlock() {
 
 func (inode *MemInode) Reference() {
 	inode.count++
+}
+
+func (inode *MemInode) Link() {
+	inode.nlink++
 }
 
 func (inode *MemInode) AddDirent(

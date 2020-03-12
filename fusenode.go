@@ -19,6 +19,7 @@ import (
 //   fuse.NodeMkdirer
 //   fuse.NodeRemover
 //   fuse.NodeRenamer
+//   fuse.NodeLinker
 //   fuse.NodeSetattrer
 //   fuse.NodeForgetter
 //   fuse.NodeFsyncer
@@ -127,6 +128,17 @@ func (fn *FuseNode) Rename(
 	dNode, _ := newDir.(*FuseNode)
 	return FuseError(fn.fs.Back.Rename(
 		fn.ino, req.OldName, dNode.ino, req.NewName))
+}
+
+func (fn *FuseNode) Link(
+	_ context.Context, req *fuse.LinkRequest, old fs.Node) (fs.Node, error) {
+	oldFn, _ := old.(*FuseNode)
+	log.Printf("Link <%v, %s> to %v", fn.ino, req.NewName, oldFn.ino)
+	stat, err := fn.fs.Back.Link(oldFn.ino, fn.ino, req.NewName)
+	if err != nil {
+		return nil, FuseError(err)
+	}
+	return fn.fs.LoadNode(stat.Ino, stat), nil
 }
 
 func (fn *FuseNode) Setattr(

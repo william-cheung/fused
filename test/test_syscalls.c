@@ -2106,8 +2106,8 @@ int main(int argc, char *argv[])
 	err += test_create_unlink();
 	err += test_create_unlink_create();
 	// err += test_symlink();
-	// err += test_link();
-	// err += test_link2();
+	err += test_link();
+	err += test_link2();
 // #ifndef __FreeBSD__	
 // 	err += test_mknod();
 // 	err += test_mkfifo();
