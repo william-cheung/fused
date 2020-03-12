@@ -514,6 +514,8 @@ func (inode *MemInode) Unlink(name string) error {
 }
 
 func (inode *MemInode) doRemove(child *MemInode, name string) error {
+	_, _ = inode.RemoveDirent(name)
+
 	if child.nlink == 0 {
 		log.Println("(*MemInode).doRemove: nlink is already 0")
 	} else {
@@ -521,13 +523,9 @@ func (inode *MemInode) doRemove(child *MemInode, name string) error {
 		child.ctime = time.Now()
 	}
 
-	if child.nlink == 0 {
-		_, _ = inode.RemoveDirent(name)
-		if child.count == 0 {
-			// Remove inode and the associated data
-			inode.fs.RemoveInode(child.ino)
-			return nil
-		}
+	if child.nlink == 0 && child.count == 0 {
+		inode.fs.RemoveInode(child.ino)
+		return nil
 	}
 	return nil
 }
