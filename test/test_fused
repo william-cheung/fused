@@ -1,0 +1,18 @@
+#!/bin/sh -x
+
+fstype="memfs"
+
+mkdir -p /tmp/fuse /tmp/log; umount -f /tmp/fuse; bin/fused -fuse.debug -type $fstype /tmp/fuse > /tmp/log/fuse.log 2>&1 &
+sleep 3
+
+if [ ! $(df | grep $fstype | wc -l) -eq 1 ]; then 
+    echo "$fstype is not mounted"
+    exit 1
+fi
+
+set -e # Exit immediately if a command exits with a non-zero status
+
+gcc -o bin/test_syscalls test/test_syscalls.c
+bin/test_syscalls /tmp/fuse
+
+go test test/fs_test.go -race -test.v -args -mountpoint /tmp/fuse

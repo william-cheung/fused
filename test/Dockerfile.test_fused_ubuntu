@@ -1,0 +1,23 @@
+FROM ubuntu:18.04
+
+RUN apt-get update; \
+    apt-get install -y software-properties-common --no-install-recommends; \
+    add-apt-repository ppa:longsleep/golang-backports; \
+    apt-get install -y golang-1.12 --no-install-recommends
+RUN apt-get install -y gcc libc6-dev git fuse --no-install-recommends
+RUN apt-get install -y build-essential --no-install-recommends
+
+RUN mkdir -p /opt/go/src/fused
+ADD . /opt/go/src/fused
+WORKDIR /opt/go/src/fused
+
+ENV PATH="${PATH}:/usr/lib/go-1.12/bin"
+ENV GOPATH="/opt/go"
+ENV GO11MODULE=on
+ENV GO111MODULE=on
+
+RUN make fused
+
+ADD test/test_fused test/test_fused
+
+CMD test/test_fused
